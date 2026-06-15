@@ -11,6 +11,9 @@ export enum ClusterAction {
   Hibernate = 'hibernate-cluster',
   Resume = 'resume-cluster',
   Detach = 'detach-cluster',
+  EnablePreserveOnDelete = 'enable-preserve-on-delete',
+  DisablePreserveOnDelete = 'disable-preserve-on-delete',
+  PreserveOnDeleteImported = 'preserve-on-delete-imported',
   Destroy = 'destroy-cluster',
   EditAI = 'ai-edit',
   ScaleUpAI = 'ai-scale-up',
@@ -97,6 +100,12 @@ export function clusterSupportsAction(
           ClusterStatus.resuming,
         ].includes(cluster.status)
       )
+    case ClusterAction.PreserveOnDeleteImported:
+      return !cluster.isHive && !cluster.isHypershift && cluster.isManaged
+    case ClusterAction.EnablePreserveOnDelete:
+      return cluster.isHive && !cluster.hive.preserveOnDelete && !(cluster.hive.clusterPool && !cluster.hive.clusterClaimName)
+    case ClusterAction.DisablePreserveOnDelete:
+      return cluster.isHive && !!cluster.hive.preserveOnDelete && !(cluster.hive.clusterPool && !cluster.hive.clusterClaimName)
     case ClusterAction.DestroyManaged:
       return !cluster.isHive && cluster.isManaged && !cluster.isHostedCluster
     case ClusterAction.Destroy:

@@ -81,6 +81,19 @@ const patchClusterPowerState = (cluster: Cluster, powerState: 'Hibernating' | 'R
     [{ op: 'replace', path: '/spec/powerState', value: powerState }]
   )
 
+const patchClusterPreserveOnDelete = (cluster: Cluster, preserveOnDelete: boolean) =>
+  patchResource(
+    {
+      apiVersion: ClusterDeploymentDefinition.apiVersion,
+      kind: ClusterDeploymentDefinition.kind,
+      metadata: {
+        name: cluster.name,
+        namespace: cluster.namespace!,
+      },
+    } as ClusterDeployment,
+    { spec: { preserveOnDelete } }
+  )
+
 export function useClusterNameColumn(areLinksDisplayed: boolean = true): IAcmTableColumn<Cluster> {
   const { t } = useTranslation()
   return {
@@ -705,27 +718,111 @@ export function useTableActions(
       variant: 'bulk-action',
     },
     {
+      id: 'enablePreserveOnDelete',
+      title: t('managed.enable-preserve-on-delete.plural'),
+      click: (clusters) => {
+        const eligible = clusters.filter((cluster) => clusterSupportsAction(cluster, ClusterAction.EnablePreserveOnDelete))
+        const ineligible = clusters.filter((cluster) => !clusterSupportsAction(cluster, ClusterAction.EnablePreserveOnDelete))
+        setModalProps({
+          open: true,
+          title: t('bulk.title.enable-preserve-on-delete'),
+          action: t('enable'),
+          processing: t('enabling'),
+          items: eligible,
+          emptyState: (
+            <AcmEmptyState
+              title={t('No clusters available')}
+              message={t('None of the selected clusters support preserve on delete.')}
+            />
+          ),
+          alert:
+            ineligible.length > 0 ? (
+              <Alert
+                variant="info"
+                isInline
+                title={t('bulk.preserve-on-delete.ineligible', { count: ineligible.length })}
+              />
+            ) : undefined,
+          description: t('bulk.message.enable-preserve-on-delete'),
+          columns: modalColumns,
+          keyFn: (cluster) => cluster.name,
+          actionFn: (cluster) => patchClusterPreserveOnDelete(cluster, true),
+          close: () => setModalProps({ open: false }),
+          confirmText: t('confirm'),
+          isValidError: errorIsNot([ResourceErrorCode.NotFound]),
+        })
+      },
+      variant: 'bulk-action',
+    },
+    {
+      id: 'disablePreserveOnDelete',
+      title: t('managed.disable-preserve-on-delete.plural'),
+      click: (clusters) => {
+        const eligible = clusters.filter((cluster) => clusterSupportsAction(cluster, ClusterAction.DisablePreserveOnDelete))
+        const ineligible = clusters.filter((cluster) => !clusterSupportsAction(cluster, ClusterAction.DisablePreserveOnDelete))
+        setModalProps({
+          open: true,
+          title: t('bulk.title.disable-preserve-on-delete'),
+          action: t('disable'),
+          processing: t('disabling'),
+          items: eligible,
+          emptyState: (
+            <AcmEmptyState
+              title={t('No clusters available')}
+              message={t('None of the selected clusters have preserve on delete enabled.')}
+            />
+          ),
+          alert:
+            ineligible.length > 0 ? (
+              <Alert
+                variant="info"
+                isInline
+                title={t('bulk.preserve-on-delete.ineligible', { count: ineligible.length })}
+              />
+            ) : undefined,
+          description: '',
+          columns: modalColumns,
+          keyFn: (cluster) => cluster.name,
+          actionFn: (cluster) => patchClusterPreserveOnDelete(cluster, false),
+          close: () => setModalProps({ open: false }),
+          confirmText: t('confirm'),
+          isValidError: errorIsNot([ResourceErrorCode.NotFound]),
+        })
+      },
+      variant: 'bulk-action',
+    },
+    {
       id: 'destroyCluster',
       title: t('managed.destroy.plural'),
       click: (clusters) => {
         const unDestroyedClusters = clusters.filter((cluster) => !clusterDestroyable(cluster))
+        const hasPreserveOnDelete = clusters.some((cluster) => cluster.hive.preserveOnDelete)
         setModalProps({
           open: true,
           alert:
-            unDestroyedClusters.length > 0 ? (
-              <Alert
-                variant="danger"
-                isInline
-                title={t('You selected {{count}} cluster that cannot be destroyed', {
-                  count: unDestroyedClusters.length,
-                })}
-              >
-                <Content>
-                  {t('It will not be destroyed when you perform this action.', {
-                    count: unDestroyedClusters.length,
-                  })}
-                </Content>
-              </Alert>
+            unDestroyedClusters.length > 0 || hasPreserveOnDelete ? (
+              <>
+                {unDestroyedClusters.length > 0 && (
+                  <Alert
+                    variant="danger"
+                    isInline
+                    title={t('You selected {{count}} cluster that cannot be destroyed', {
+                      count: unDestroyedClusters.length,
+                    })}
+                  >
+                    <Content>
+                      {t('It will not be destroyed when you perform this action.', {
+                        count: unDestroyedClusters.length,
+                      })}
+                    </Content>
+                  </Alert>
+                )}
+                {hasPreserveOnDelete && (
+                  <Alert variant="warning" isInline title={t('preserve-on-delete.destroy.warning.title')}>
+                    {t('preserve-on-delete.destroy.warning.body')}
+                  </Alert>
+                )}
+              </>
             ) : undefined,
           title: t('bulk.title.destroy'),
           action: t('destroy'),

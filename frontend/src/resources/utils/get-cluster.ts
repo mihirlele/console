@@ -266,6 +266,7 @@ export type Cluster = {
     secrets?: HiveSecrets
     clusterClaimName?: string
     lifetime?: string
+    preserveOnDelete?: boolean
   }
   isHive: boolean
   isManaged: boolean
@@ -661,6 +662,7 @@ export function getHiveConfig(clusterDeployment?: ClusterDeployment, clusterClai
       pullSecret: clusterDeployment?.spec?.pullSecretRef?.name,
     },
     lifetime: clusterClaim?.spec?.lifetime,
+    preserveOnDelete: clusterDeployment?.spec?.preserveOnDelete,
   }
 }
 

@@ -1,6 +1,6 @@
 /* Copyright Contributors to the Open Cluster Management project */
 
-import { Content, ContentVariants } from '@patternfly/react-core'
+import { Alert, Content, ContentVariants } from '@patternfly/react-core'
 import { AcmInlineProvider, AcmToastContext } from '../../../../../ui-components'
 import { useCallback, useContext, useMemo, useState } from 'react'
 import { generatePath, useNavigate } from 'react-router'
@@ -163,6 +163,11 @@ export function ClusterActionDropdown(props: { cluster: Cluster; isKebab: boolea
   if (cluster.isManaged) {
     destroyRbac.push(rbacDelete(ManagedClusterDefinition, undefined, cluster.name))
   }
+
+  const preserveOnDeleteRbac = useMemo(
+    () => [rbacPatch(ClusterDeploymentDefinition, cluster.namespace, cluster.name)],
+    [cluster.name, cluster.namespace]
+  )
 
   const importTemplate = useCallback(
     (action: (item: Cluster, options?: { [key: string]: boolean } | undefined) => IRequestResult) => {
@@ -378,6 +383,81 @@ export function ClusterActionDropdown(props: { cluster: Cluster; isKebab: boolea
           rbac: [rbacDelete(ManagedClusterDefinition, undefined, cluster.name)],
         },
         {
+          id: ClusterAction.PreserveOnDeleteImported,
+          text: t('managed.preserve-on-delete'),
+          isDisabled: true,
+          description: t('preserve-on-delete.disabled.tooltip'),
+          click: () => {},
+        },
+        {
+          id: ClusterAction.EnablePreserveOnDelete,
+          text: t('managed.enable-preserve-on-delete'),
+          click: (cluster: Cluster) => {
+            setModalProps({
+              open: true,
+              title: t('bulk.title.enable-preserve-on-delete'),
+              action: t('enable'),
+              processing: t('enabling'),
+              items: [cluster],
+              emptyState: undefined, // there is always 1 item supplied
+              description: t('enable.preserve.on.delete.message'),
+              columns: modalColumns,
+              keyFn: (cluster) => cluster.name as string,
+              actionFn: (cluster) =>
+                patchResource(
+                  {
+                    apiVersion: ClusterDeploymentDefinition.apiVersion,
+                    kind: ClusterDeploymentDefinition.kind,
+                    metadata: {
+                      name: cluster.name!,
+                      namespace: cluster.namespace!,
+                    },
+                  } as ClusterDeployment,
+                  { spec: { preserveOnDelete: true } }
+                ),
+              close: () => {
+                setModalProps({ open: false })
+              },
+            })
+          },
+          isAriaDisabled: true,
+          rbac: preserveOnDeleteRbac,
+        },
+        {
+          id: ClusterAction.DisablePreserveOnDelete,
+          text: t('managed.disable-preserve-on-delete'),
+          click: (cluster: Cluster) => {
+            setModalProps({
+              open: true,
+              title: t('bulk.title.disable-preserve-on-delete'),
+              action: t('disable'),
+              processing: t('disabling'),
+              items: [cluster],
+              emptyState: undefined, // there is always 1 item supplied
+              description: '',
+              columns: modalColumns,
+              keyFn: (cluster) => cluster.name as string,
+              actionFn: (cluster) =>
+                patchResource(
+                  {
+                    apiVersion: ClusterDeploymentDefinition.apiVersion,
+                    kind: ClusterDeploymentDefinition.kind,
+                    metadata: {
+                      name: cluster.name!,
+                      namespace: cluster.namespace!,
+                    },
+                  } as ClusterDeployment,
+                  { spec: { preserveOnDelete: false } }
+                ),
+              close: () => {
+                setModalProps({ open: false })
+              },
+            })
+          },
+          isAriaDisabled: true,
+          rbac: preserveOnDeleteRbac,
+        },
+        {
           id: ClusterAction.DestroyManaged,
           text: t('managed.destroy'),
           separator: true,
@@ -415,6 +495,11 @@ export function ClusterActionDropdown(props: { cluster: Cluster; isKebab: boolea
               confirmText: cluster.displayName,
               isValidError: errorIsNot([ResourceErrorCode.NotFound]),
               enableDeletePullSecret: true,
+              alert: cluster.hive.preserveOnDelete ? (
+                <Alert variant="warning" isInline title={t('preserve-on-delete.destroy.warning.title')}>
+                  {t('preserve-on-delete.destroy.warning.body')}
+                </Alert>
+              ) : undefined,
             })
           },
           isAriaDisabled: true,
@@ -488,6 +573,7 @@ export function ClusterActionDropdown(props: { cluster: Cluster; isKebab: boolea
       isSearchAvailable,
       importTemplate,
       destroyRbac,
+      preserveOnDeleteRbac,
       modalColumns,
       infraEnvs,
       navigate,

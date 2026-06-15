@@ -29,3 +29,7 @@ playwright.config.ts
 .env
 e2e-template/*.test.ts
 e2e-template/*.spec.ts
+
+# Local spec and plan files
+_specs/
+_plan/
